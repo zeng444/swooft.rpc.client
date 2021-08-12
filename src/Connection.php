@@ -40,7 +40,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
     /**
      * @var Client
      */
-    protected $connection;
+    protected $connection = [];
 
     /**
      * @var RpcClient
@@ -70,9 +70,24 @@ class Connection extends AbstractConnection implements ConnectionInterface
      */
     public function create(): void
     {
-        $connection = new Client(SWOOLE_SOCK_TCP);
-        [$host, $port] = $this->getHostPort();
+        $list = $this->getHostPort() ;
 
+        foreach ($list as $name => $hostPort) {
+            list($host, $port) = explode(':', $hostPort);
+            CLog::info($name.'-'.$host.'-'.$port);
+            $this->createByName((string)$name, $host, $port);
+        }
+    }
+
+    /**
+     * @param string $name
+     * @param string $host
+     * @param string $port
+     * @author Robert
+     */
+    public function createByName(string $name,string $host,string $port)
+    {
+        $connection = new Client(SWOOLE_SOCK_TCP);
         $setting = $this->client->getSetting();
         if ($setting) {
             $connection->set($setting);
@@ -81,8 +96,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
         if (!$connection->connect($host, (int)$port)) {
             throw new RpcClientException(sprintf('Connect failed host=%s port=%d', $host, $port));
         }
-
-        $this->connection = $connection;
+        $this->connection[$name] = $connection;
     }
 
     /**
@@ -90,7 +104,9 @@ class Connection extends AbstractConnection implements ConnectionInterface
      */
     public function close(): void
     {
-        $this->connection->close();
+        foreach ($this->connection as $connection){
+            $connection->close();
+        }
     }
 
     /**
@@ -129,7 +145,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
      */
     public function send(string $data): bool
     {
-        return (bool)$this->connection->send($data);
+        return (bool)$this->seletor()->send($data);
     }
 
     /**
@@ -138,7 +154,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
     public function recv()
     {
         // fix: The timeout setting uses the configuration when the client connects. timeout, read_timeout
-        return $this->connection->recv();
+        return $this->seletor()->recv();
     }
 
     /**
@@ -146,7 +162,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
      */
     public function getErrCode(): int
     {
-        return (int)$this->connection->errCode;
+        return (int)$this->seletor()->errCode;
     }
 
     /**
@@ -154,7 +170,7 @@ class Connection extends AbstractConnection implements ConnectionInterface
      */
     public function getErrMsg(): string
     {
-        return (string)$this->connection->errMsg;
+        return (string)$this->seletor()->errMsg;
     }
 
     /**
@@ -165,7 +181,9 @@ class Connection extends AbstractConnection implements ConnectionInterface
     {
         $provider = $this->client->getProvider();
         if (!$provider) {
-            return [$this->client->getHost(), $this->client->getPort()];
+            return [
+                $this->client->getHost().':'.$this->client->getPort()
+            ];
         }
 
         $list = $provider->getList($this->client);
@@ -176,15 +194,20 @@ class Connection extends AbstractConnection implements ConnectionInterface
         if (!is_array($list)) {
             throw new RpcClientException(sprintf('Provider(%s) return format is error!', JsonHelper::encode($list)));
         }
-
-        $randKey  = array_rand($list, 1);
-        $hostPort = explode(':', $list[$randKey]);
-
-        if (count($hostPort) < 2) {
-            throw new RpcClientException(sprintf('Provider(%s) return format is error!', $list[$randKey]));
-        }
-
-        [$host, $port] = $hostPort;
-        return [$host, $port];
+        return $list;
     }
+
+    /**
+     * @return string
+     * @author Robert
+     */
+    private function seletor(): Client
+    {
+        $balancer = $this->getClient()->getBalancer();
+        if(!$balancer){
+            return current($this->connection);
+        }
+        return $balancer->handle($this->connection);
+    }
+
 }

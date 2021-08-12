@@ -11,6 +11,7 @@
 namespace Swoft\Rpc\Client;
 
 use Swoft\Bean\BeanFactory;
+use Swoft\Rpc\Client\Contract\BalancerInterface;
 use Swoft\Rpc\Client\Contract\ExtenderInterface;
 use Swoft\Rpc\Client\Contract\ProviderInterface;
 use Swoft\Rpc\Client\Exception\RpcClientException;
@@ -54,6 +55,11 @@ class Client
      * @var ExtenderInterface
      */
     protected $extender;
+
+    /**
+     * @var BalancerInterface
+     */
+    protected $balancer;
 
     /**
      * @var ProviderInterface
@@ -129,6 +135,14 @@ class Client
     public function getProvider(): ?ProviderInterface
     {
         return $this->provider;
+    }
+
+    /**
+     * @return BalancerInterface
+     */
+    public function getBalancer(): ?BalancerInterface
+    {
+        return $this->balancer;
     }
 
     /**
