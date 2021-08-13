@@ -74,7 +74,6 @@ class Connection extends AbstractConnection implements ConnectionInterface
 
         foreach ($list as $name => $hostPort) {
             list($host, $port) = explode(':', $hostPort);
-            CLog::info($name.'-'.$host.'-'.$port);
             $this->createByName((string)$name, $host, $port);
         }
     }
